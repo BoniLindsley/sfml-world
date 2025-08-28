@@ -33,64 +33,14 @@ A simple client-server MMORPG template built with C++ and SFML that includes log
 
 ### System Requirements
 
-- C++ compiler with C++17 support (GCC 7+ or Clang 5+)
-- SFML 2.5+ library
+- C++ compiler with C+23 support
 - pthread support (usually built-in on Linux/macOS)
-
-### Installing SFML
-
-**Ubuntu/Debian:**
-
-```bash
-sudo apt-get update
-sudo apt-get install libsfml-dev
-```
-
-**macOS (with Homebrew):**
-
-```bash
-brew install sfml
-```
-
-**Windows:**
-
-- Download SFML from https://www.sfml-dev.org/download.php
-- Extract and configure your IDE/compiler paths
 
 ## Building the Project
 
-### Using the Makefile
-
-1. **Build everything:**
-
 ```bash
-make all
-```
-
-2. **Build only server:**
-
-```bash
-make server
-```
-
-3. **Build only client:**
-
-```bash
-make client
-```
-
-### Manual Compilation
-
-**Server:**
-
-```bash
-g++ -std=c++17 -Wall -Wextra -O2 -o mmorpg_server server.cpp -lsfml-network -lpthread
-```
-
-**Client:**
-
-```bash
-g++ -std=c++17 -Wall -Wextra -O2 -o mmorpg_client client.cpp -lsfml-graphics -lsfml-window -lsfml-system -lsfml-network -lpthread
+cmake -B build
+cmake --build build
 ```
 
 ## Running the Game
@@ -98,7 +48,7 @@ g++ -std=c++17 -Wall -Wextra -O2 -o mmorpg_client client.cpp -lsfml-graphics -ls
 ### 1. Start the Server
 
 ```bash
-./mmorpg_server
+./build/sfml-world-server
 ```
 
 - Server listens on port 53000
@@ -108,7 +58,7 @@ g++ -std=c++17 -Wall -Wextra -O2 -o mmorpg_client client.cpp -lsfml-graphics -ls
 ### 2. Start Client(s)
 
 ```bash
-./mmorpg_client
+./build/sfml-world-client
 ```
 
 **Note:** You need a font file named `arial.ttf` in the same directory as the client executable. If you don't have it, the client will still work but text may not display properly.
@@ -213,8 +163,7 @@ client.cpp          # Client-side logic and rendering
 
 **Compilation errors**
 
-- Ensure SFML is properly installed
-- Check C++17 compiler support
+- Check C++23 compiler support
 - Verify all library paths are correct
 
 **Players not visible**
