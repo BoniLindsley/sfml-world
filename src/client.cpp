@@ -15,10 +15,11 @@ struct RemotePlayer {
   sf::CircleShape shape;
   sf::Text nameText;
 
-  RemotePlayer()
-      : position(400, 300), color(sf::Color::Red), isOnline(false) {
+  RemotePlayer(const sf::Font& font)
+      : position(400, 300), color(sf::Color::Red), isOnline(false),
+        nameText(font) {
     shape.setRadius(15);
-    shape.setOrigin(15, 15);
+    shape.setOrigin({15, 15});
   }
 };
 
@@ -44,16 +45,16 @@ private:
   std::deque<std::string> chatMessages;
   std::string currentChatInput;
   bool chatInputActive;
-  sf::Text chatText;
+  sf::Text chatText{font};
   sf::RectangleShape chatInputBox;
 
   // UI elements
-  sf::Text statusText;
+  sf::Text statusText{font};
   std::string statusMessage;
 
   // Avatar creation
   bool showingAvatarCreation;
-  sf::Uint8 avatarR, avatarG, avatarB;
+  sf::Color avatarColor{};
 
   enum MessageType {
     LOGIN = 1,
@@ -68,14 +69,13 @@ private:
 
 public:
   MMORPGClient()
-      : window(sf::VideoMode(1024, 768), "MMORPG Client"),
+      : window(sf::VideoMode({1024, 768}), "MMORPG Client"),
         connected(false), loggedIn(false), playerPosition(400, 300),
         playerColor(sf::Color::Blue), chatInputActive(false),
-        showingAvatarCreation(false), avatarR(0), avatarG(0),
-        avatarB(255) {
+        showingAvatarCreation(false) {
 
     // Load font (you'll need to have a font file)
-    if (!font.loadFromFile("arial.ttf")) {
+    if (!font.openFromFile("arial.ttf")) {
       // If arial.ttf doesn't exist, try to use the default font
       std::cout << "Warning: Could not load arial.ttf font" << std::endl;
     }
@@ -86,7 +86,9 @@ public:
 
   bool
   connectToServer(const std::string& serverIP, unsigned short port) {
-    if (socket.connect(serverIP, port) != sf::Socket::Done) {
+    auto resolvedIP = sf::IpAddress::resolve(serverIP);
+    if (not resolvedIP or
+        socket.connect(*resolvedIP, port) != sf::Socket::Status::Done) {
       statusMessage = "Failed to connect to server";
       return false;
     }
@@ -117,15 +119,15 @@ private:
     statusText.setFont(font);
     statusText.setCharacterSize(16);
     statusText.setFillColor(sf::Color::White);
-    statusText.setPosition(10, 10);
+    statusText.setPosition({10, 10});
 
     chatText.setFont(font);
     chatText.setCharacterSize(14);
     chatText.setFillColor(sf::Color::White);
-    chatText.setPosition(10, window.getSize().y - 150);
+    chatText.setPosition({10, window.getSize().y - 150});
 
     chatInputBox.setSize(sf::Vector2f(400, 25));
-    chatInputBox.setPosition(10, window.getSize().y - 30);
+    chatInputBox.setPosition({10, window.getSize().y - 30});
     chatInputBox.setFillColor(sf::Color(50, 50, 50));
     chatInputBox.setOutlineColor(sf::Color::White);
     chatInputBox.setOutlineThickness(1);
@@ -135,25 +137,25 @@ private:
 
   void setupPlayer() {
     playerShape.setRadius(15);
-    playerShape.setOrigin(15, 15);
+    playerShape.setOrigin({15, 15});
     playerShape.setFillColor(playerColor);
     playerShape.setPosition(playerPosition);
   }
 
   void handleEvents() {
-    sf::Event event;
-    while (window.pollEvent(event)) {
-      if (event.type == sf::Event::Closed) {
+    while (const auto event = window.pollEvent()) {
+      if (event->is<sf::Event::Closed>()) {
         if (loggedIn) {
           logout();
         }
         window.close();
       }
 
-      if (event.type == sf::Event::KeyPressed) {
-        if (event.key.code == sf::Keyboard::C && !connected) {
+      if (event->is<sf::Event::KeyPressed>()) {
+        auto code = event->getIf<sf::Event::KeyPressed>()->code;
+        if (code == sf::Keyboard::Key::C && !connected) {
           connectToServer("127.0.0.1", 53000);
-        } else if (event.key.code == sf::Keyboard::Enter) {
+        } else if (code == sf::Keyboard::Key::Enter) {
           if (chatInputActive) {
             if (!currentChatInput.empty()) {
               if (loggedIn) {
@@ -167,27 +169,26 @@ private:
             login(currentChatInput);
             currentChatInput.clear();
           }
-        } else if (event.key.code == sf::Keyboard::T && loggedIn) {
+        } else if (code == sf::Keyboard::Key::T && loggedIn) {
           chatInputActive = true;
-        } else if (event.key.code == sf::Keyboard::A && loggedIn) {
+        } else if (code == sf::Keyboard::Key::A && loggedIn) {
           showingAvatarCreation = !showingAvatarCreation;
-        } else if (event.key.code == sf::Keyboard::Escape) {
+        } else if (code == sf::Keyboard::Key::Escape) {
           chatInputActive = false;
           showingAvatarCreation = false;
           currentChatInput.clear();
         } else if (showingAvatarCreation) {
-          handleAvatarInput(event.key.code);
+          handleAvatarInput(code);
         }
       }
 
-      if (event.type == sf::Event::TextEntered &&
+      if (event->is<sf::Event::TextEntered>() &&
           (chatInputActive || (!loggedIn && connected))) {
-        if (event.text.unicode >= 32 &&
-            event.text.unicode < 127) { // Printable ASCII
-          currentChatInput += static_cast<char>(event.text.unicode);
+        auto unicode = event->getIf<sf::Event::TextEntered>()->unicode;
+        if (unicode >= 32 && unicode < 127) { // Printable ASCII
+          currentChatInput += static_cast<char>(unicode);
         } else if (
-            event.text.unicode == 8 &&
-            !currentChatInput.empty()) { // Backspace
+            unicode == 8 && !currentChatInput.empty()) { // Backspace
           currentChatInput.pop_back();
         }
       }
@@ -198,21 +199,20 @@ private:
     bool changed = false;
 
     switch (key) {
-    case sf::Keyboard::R:
-      avatarR = (avatarR + 50) % 256;
+      case sf::Keyboard::Key::R:
+      avatarColor.r += 50;
       changed = true;
       break;
-    case sf::Keyboard::G:
-      avatarG = (avatarG + 50) % 256;
+      case sf::Keyboard::Key::G:
+      avatarColor.g += 50;
       changed = true;
       break;
-    case sf::Keyboard::B:
-      avatarB = (avatarB + 50) % 256;
+    case sf::Keyboard::Key::B:
+      avatarColor.b += 50;
       changed = true;
       break;
-    case sf::Keyboard::Space:
-      if (changed ||
-          playerColor != sf::Color(avatarR, avatarG, avatarB)) {
+    case sf::Keyboard::Key::Space:
+      if (changed || playerColor != avatarColor) {
         createAvatar();
       }
       showingAvatarCreation = false;
@@ -220,7 +220,7 @@ private:
     }
 
     if (changed) {
-      playerColor = sf::Color(avatarR, avatarG, avatarB);
+      playerColor = avatarColor;
       playerShape.setFillColor(playerColor);
     }
   }
@@ -237,20 +237,20 @@ private:
     sf::Vector2f movement(0, 0);
     float speed = 200.0f; // pixels per second
 
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left) ||
-        sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) ||
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) {
       movement.x -= speed * deltaTime.asSeconds();
     }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right) ||
-        sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right) ||
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) {
       movement.x += speed * deltaTime.asSeconds();
     }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up) ||
-        sf::Keyboard::isKeyPressed(sf::Keyboard::W)) {
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) ||
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
       movement.y -= speed * deltaTime.asSeconds();
     }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down) ||
-        sf::Keyboard::isKeyPressed(sf::Keyboard::S)) {
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) ||
+        sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) {
       movement.y += speed * deltaTime.asSeconds();
     }
 
@@ -283,10 +283,9 @@ private:
       displayStatus += "\nChat: " + currentChatInput;
     } else if (showingAvatarCreation) {
       std::stringstream ss;
-      ss << "\nAvatar Creation (RGB: " << (int)avatarR << ", "
-         << (int)avatarG << ", " << (int)avatarB << ")";
-      ss << "\nPress R/G/B to change colors, Space to confirm, Esc to "
-            "cancel";
+      ss << "\nAvatar Creation (RGB: " << static_cast<int>(avatarColor.r)
+         << "," << static_cast<int>(avatarColor.g) << ","
+         << static_cast<int>(avatarColor.b) << ")";
       displayStatus += ss.str();
     } else if (loggedIn) {
       displayStatus +=
@@ -329,11 +328,10 @@ private:
     if (chatInputActive || (!loggedIn && connected)) {
       window.draw(chatInputBox);
 
-      sf::Text inputText;
-      inputText.setFont(font);
+      sf::Text inputText{font};
       inputText.setCharacterSize(14);
       inputText.setFillColor(sf::Color::White);
-      inputText.setPosition(15, window.getSize().y - 27);
+      inputText.setPosition({15, window.getSize().y - 27});
       inputText.setString(currentChatInput + "_");
       window.draw(inputText);
     }
@@ -344,7 +342,7 @@ private:
   void handleNetwork() {
     sf::Packet packet;
     while (connected) {
-      if (socket.receive(packet) == sf::Socket::Done) {
+      if (socket.receive(packet) == sf::Socket::Status::Done) {
         int messageType;
         packet >> messageType;
 
@@ -405,7 +403,8 @@ private:
 
   void createAvatar() {
     sf::Packet packet;
-    packet << CREATE_AVATAR << avatarR << avatarG << avatarB;
+    packet << CREATE_AVATAR << avatarColor.r << avatarColor.g
+           << avatarColor.b;
     socket.send(packet);
   }
 
@@ -417,9 +416,7 @@ private:
     statusMessage = "Logged in as: " + user;
 
     // Set avatar colors to current player color
-    avatarR = playerColor.r;
-    avatarG = playerColor.g;
-    avatarB = playerColor.b;
+    avatarColor = playerColor;
   }
 
   void handleLoginFailed(sf::Packet& packet) {
@@ -444,33 +441,34 @@ private:
     packet >> playerName >> x >> y;
 
     std::lock_guard<std::mutex> lock(remotePlayersMutex);
-    if (remotePlayers.find(playerName) != remotePlayers.end()) {
-      remotePlayers[playerName].position = sf::Vector2f(x, y);
-      remotePlayers[playerName].shape.setPosition(x, y);
+    if (auto player = remotePlayers.find(playerName); player != remotePlayers.end()) {
+      player->second.position = {x, y};
+      player->second.shape.setPosition({x, y});
     }
   }
 
   void handlePlayerUpdate(sf::Packet& packet) {
     std::string playerName;
     float x, y;
-    sf::Uint8 r, g, b;
+    auto receivedColor = sf::Color{};
     bool isOnline;
-    packet >> playerName >> x >> y >> r >> g >> b >> isOnline;
+    packet >> playerName >> x >> y >> receivedColor.r >> receivedColor.g >> receivedColor.b >> isOnline;
 
     std::lock_guard<std::mutex> lock(remotePlayersMutex);
-    RemotePlayer& player = remotePlayers[playerName];
+    auto playerIter = remotePlayers.try_emplace(playerName, font);
+    RemotePlayer& player = playerIter.first->second;
     player.position = sf::Vector2f(x, y);
-    player.color = sf::Color(r, g, b);
+    player.color = receivedColor;
     player.isOnline = isOnline;
 
-    player.shape.setPosition(x, y);
+    player.shape.setPosition({x, y});
     player.shape.setFillColor(player.color);
 
     player.nameText.setFont(font);
     player.nameText.setString(playerName);
     player.nameText.setCharacterSize(12);
     player.nameText.setFillColor(sf::Color::White);
-    player.nameText.setPosition(x - 20, y - 30);
+    player.nameText.setPosition({x - 20, y - 30});
 
     if (!isOnline) {
       // Player logged out, but keep in map for potential reconnection

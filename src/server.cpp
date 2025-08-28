@@ -1,3 +1,4 @@
+#include <SFML/Graphics.hpp>
 #include <SFML/Network.hpp>
 #include <iostream>
 #include <map>
@@ -42,7 +43,7 @@ public:
   MMORPGServer() : running(false) {}
 
   bool start(unsigned short port) {
-    if (listener.listen(port) != sf::Socket::Done) {
+    if (listener.listen(port) != sf::Socket::Status::Done) {
       std::cout << "Error: Could not listen on port " << port
                 << std::endl;
       return false;
@@ -57,9 +58,14 @@ public:
     while (running) {
       auto client = std::make_unique<sf::TcpSocket>();
 
-      if (listener.accept(*client) == sf::Socket::Done) {
+      if (listener.accept(*client) == sf::Socket::Status::Done) {
         std::cout << "New client connected: "
-                  << client->getRemoteAddress() << std::endl;
+                  << client->getRemoteAddress()
+                         .transform([](const sf::IpAddress& client_ip) {
+                           return client_ip.toString();
+                         })
+                         .value_or("")
+                  << std::endl;
 
         clients.push_back(std::move(client));
 
@@ -81,7 +87,7 @@ private:
     sf::Packet packet;
     std::string clientKey = getClientKey(client);
 
-    while (client->receive(packet) == sf::Socket::Done) {
+    while (client->receive(packet) == sf::Socket::Status::Done) {
       int messageType;
       packet >> messageType;
 
@@ -219,15 +225,15 @@ private:
   }
 
   void handleCreateAvatar(sf::TcpSocket* client, sf::Packet& packet) {
-    sf::Uint8 r, g, b;
-    packet >> r >> g >> b;
+    sf::Color package_color;
+    packet >> package_color.r >> package_color.g >> package_color.b;
 
     std::lock_guard<std::mutex> lock(playersMutex);
 
     // Update player color
     for (auto& pair : players) {
       if (pair.second.socket == client && pair.second.isLoggedIn) {
-        pair.second.color = sf::Color(r, g, b);
+        pair.second.color = package_color;
 
         std::cout << "Player " << pair.first << " updated avatar color"
                   << std::endl;
@@ -296,7 +302,12 @@ private:
   }
 
   std::string getClientKey(sf::TcpSocket* client) {
-    return client->getRemoteAddress().toString() + ":" +
+    auto client_ip = client->getRemoteAddress().transform(
+        [](const sf::IpAddress& client_ip) {
+          return client_ip.toString();
+        });
+
+    return client_ip.value_or("") + ":" +
            std::to_string(client->getRemotePort());
   }
 };
